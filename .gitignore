@@ -36,5 +36,5 @@ lerna-debug.log*
 # Env
 .env
 
-# ChromaDB binary data (keep sqlite metadata)
-rag/chroma_db/*/
+# ChromaDB
+rag/chroma_db/
