@@ -3,7 +3,7 @@
     Windows one-line developer toolchain installer.
 
 .DESCRIPTION
-    Installs Python 3.12.10 + uv, Git, nvm-windows, Node.js 22.22.0,
+    Installs Python 3.12.10, uv, Git, nvm-windows, Node.js 22.22.0,
     and generates an RSA 4096-bit SSH key pair.
 
 .PARAMETER Email
@@ -177,12 +177,12 @@ function Install-Curl {
 
         Write-Host "Downloading curl for Windows..."
         $url = "https://curl.se/windows/dl-latest/curl-latest-win64-mingw.zip"
-
+        
         Invoke-WebRequest -Uri $url -OutFile $zipFile -UseBasicParsing
 
         Write-Host "Extracting curl..."
         if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
-
+        
         Expand-Archive -Path $zipFile -DestinationPath $extractDir -Force
 
         $foundCurl = Get-ChildItem -Path $extractDir -Recurse -Filter "curl.exe" | Select-Object -First 1
@@ -201,7 +201,7 @@ function Install-Curl {
     }
 
     Add-ToPath $curlDir
-
+    
     Refresh-EnvironmentPath
     Start-Sleep -Milliseconds 500
 }
@@ -254,19 +254,47 @@ function Install-Python {
     # Refresh environment to pick up installer's PATH changes
     Refresh-EnvironmentPath
     Start-Sleep -Milliseconds 500
+}
 
-    # Install uv via pip
+function Install-Uv {
+    Write-Step 2.5 "Installing uv"
+
+    # Detect — skip if already present
+    try {
+        $uvVersion = & uv --version 2>&1
+        if ($uvVersion -match 'uv') {
+            Write-Skip "uv" "already installed ($uvVersion)"
+            Add-ToPath "$env:USERPROFILE\.local\bin"
+            Refresh-EnvironmentPath
+            return
+        }
+    } catch {
+        # uv not found — proceed with install
+    }
+
+    # Install via Astral's official installer script
     try {
         $ErrorActionPreference = 'Stop'
-        & pip install uv
+        Write-Host "Downloading and running uv installer..."
+        & powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
         if ($LASTEXITCODE -ne 0) {
-            throw "pip install uv exited with code $LASTEXITCODE"
+            throw "uv installer exited with code $LASTEXITCODE"
         }
+
         Write-Ok "uv installed"
     } catch {
         Write-Warn "uv installation failed: $_"
+        return
     }
+
+    # Add uv to PATH for this session and persistently
+    Add-ToPath "$env:USERPROFILE\.local\bin"
+
+    # Refresh environment to pick up changes
+    Refresh-EnvironmentPath
+    Start-Sleep -Milliseconds 500
 }
+
 function Install-Git {
     Write-Step 3 "Installing Git"
 
@@ -538,6 +566,7 @@ Host github.com
 
 Install-Curl
 Install-Python
+Install-Uv
 Install-Git
 Configure-Git -email $rawEmail
 Install-NvmAndNode
